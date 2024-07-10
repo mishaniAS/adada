@@ -1,0 +1,95 @@
+global UPlink "ether1"
+
+
+
+/system identity set name="SevStar_Golova"
+/interface wireless
+security-profiles add authentication-types=wpa2-psk mode=dynamic-keys name=profile_ED supplicant-identity="" wpa2-pre-shared-key=25071994
+add name=wlanED master-interface=wlan1 security-profile=profile_ED disabled=no ssid=ElectroDed
+/interface bridge port add interface=wlanED bridge=bridge
+
+# Разрешенные IP адреса
+/ip firewall filter remove [find where !dynamic]
+/ip firewall address-list
+add address=10.10.0.10 comment=Service list=SevStar
+add address=10.10.0.15 comment=DNS_Lokal list=SevStar
+add address=10.10.7.0/24 comment=Lokal list=SevStar
+add address=10.10.8.0/24 comment=Lokal_Admin list=SevStar
+add address=10.10.202.185 comment=Authorization list=SevStar
+add address=10.11.36.0/24 comment=Server_list list=SevStar
+add address=10.100.200.0/24 comment=Hz list=SevStar
+add address=10.150.150.0/24 comment=Authorization list=SevStar
+add address=78.30.254.0/24 comment=Service list=SevStar
+add address=172.16.254.0/24 comment=Authorization list=SevStar
+add address=callbee.sevstar.net comment=Server_SST list=SevStar
+add address=78.30.254.0/24 comment=SERVERa list=nvr
+add address=callbee.sevstar.net comment=Admin list=nvr
+add address=electroded.keenetic.link comment=ElectroDed list=User
+add address=light.sevstar.net comment=Lagran list=User
+add address=10.10.59.200 comment=Lagran list=User
+add address=78.30.210.131 comment=Roman list=User
+add address=cloud.mikrotik.com comment=Cloud list=MikroTik
+add address=cloud2.mikrotik.com comment=Cloud list=MikroTik
+add address=dns.google.com comment=Gogle_DNS list=Servis
+
+/ip firewall filter
+add action=passthrough chain=output comment="Traffic Monitor WAN limit counter: Received" packet-size=100 protocol=icmp
+add action=passthrough chain=output comment="Traffic Monitor WAN limit counter: Transmitted" packet-size=101 protocol=icmp
+add action=fasttrack-connection chain=forward comment=Fasttrack connection-state=established,related,untracked
+add action=jump chain=output comment="Winbox F2B check" content="invalid user name or password" jump-target="Fail2Ban WinBox" protocol=tcp
+add action=jump chain=output comment="Web F2B check" connection-state=established content="Error 403" jump-target="Fail2Ban WEB" protocol=tcp src-port=80
+add action=drop chain=forward comment="Drop Invalid Connections" connection-state=invalid protocol=tcp
+add action=accept chain=input comment=Ping protocol=icmp
+add action=accept chain=input comment="Resolution of installed connections" connection-state=established,related
+add action=accept chain=forward connection-state=established,related,untracked
+add action=accept chain=input comment="Rule for local CAPsMAN" dst-address-type=local src-address-type=local
+add action=accept chain=input comment=IPTV_Multicast protocol=igmp
+add action=accept chain=input dst-port=1234 protocol=udp
+add action=accept chain=forward dst-port=1234 protocol=udp
+add action=accept chain=input comment=External_Addresses src-address-list=SevStar
+add action=accept chain=input src-address-list=AllowRDP
+add action=accept chain=input src-address-list=Servis
+add action=accept chain=input src-address-list=User
+add action=accept chain=input src-address-list=MikroTik
+add action=accept chain=input in-interface=bridge
+add action=drop chain=input comment="Drop_All_Remaining On_(if F2B_Off)" in-interface-list=WAN
+add action=drop chain=input comment=Drop_BlackList in-interface-list=WAN src-address-list=BlackList
+add action=add-dst-to-address-list address-list=BlackList address-list-timeout=2h chain="Fail2Ban WinBox" comment="Winbox F2B" dst-address-list=LoginFailure02
+add action=add-dst-to-address-list address-list=LoginFailure02 address-list-timeout=2m chain="Fail2Ban WinBox" dst-address-list=LoginFailure01
+add action=add-dst-to-address-list address-list=LoginFailure01 address-list-timeout=1m chain="Fail2Ban WinBox"
+add action=return chain="Fail2Ban WinBox"
+add action=add-dst-to-address-list address-list=BlackList address-list-timeout=2h chain="Fail2Ban WEB" comment="Web F2B" dst-address-list=LoginFailure02
+add action=add-dst-to-address-list address-list=LoginFailure02 address-list-timeout=2m chain="Fail2Ban WEB" dst-address-list=LoginFailure01
+add action=add-dst-to-address-list address-list=LoginFailure01 address-list-timeout=1m chain="Fail2Ban WEB"
+add action=return chain="Fail2Ban WEB"
+
+/ip firewall raw
+add action=accept chain=prerouting src-address-list=AllowRDP
+add action=drop chain=prerouting dst-address-list=!User in-interface-list=WAN protocol=!icmp src-address-list=BlackList
+
+
+/tool traffic-monitor
+add interface=UPlink name=tmon1 on-event=":local NotifyPeriod [:totime \"00:05\
+:00\"];\r\
+\n\r\
+\n:global TMonExtIntefaceNotifyLastTimeRec;\r\
+\n:local CurrentTime [/system clock get time];\r\
+\n:local TimeShift (\$CurrentTime - \$TMonExtIntefaceNotifyLastTimeRec);\r\
+\n\r\
+\n:if (\$TimeShift > \$NotifyPeriod) do={\r\
+\n :ping address=8.8.8.8 count=1 size=100\r\
+\n :set TMonExtIntefaceNotifyLastTimeRec \$CurrentTime;\r\
+\n};" threshold=90000000 traffic=received
+add interface=UPlink name=tmon2 on-event=":local NotifyPeriod [:totime \"00:05\
+:00\"];\r\
+\n\r\
+\n:global TMonExtIntefaceNotifyLastTimeTran;\r\
+\n:local CurrentTime [/system clock get time];\r\
+\n:local TimeShift (\$CurrentTime - \$TMonExtIntefaceNotifyLastTimeTran);\
+\r\
+\n\r\
+\n:if (\$TimeShift > \$NotifyPeriod) do={\r\
+\n :ping address=8.8.8.8 count=1 size=101\r\
+\n :set TMonExtIntefaceNotifyLastTimeTran \$CurrentTime;\r\
+\n};\r\
+\n" threshold=90000000
