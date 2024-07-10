@@ -1,8 +1,9 @@
 global UPlink "ether1"
+global Name_identity "SevStar_Golova"
 
 
 
-/system identity set name="SevStar_Golova"
+/system identity set name=Name_identity
 /interface wireless
 security-profiles add authentication-types=wpa2-psk mode=dynamic-keys name=profile_ED supplicant-identity="" wpa2-pre-shared-key=25071994
 add name=wlanED master-interface=wlan1 security-profile=profile_ED disabled=no ssid=ElectroDed
